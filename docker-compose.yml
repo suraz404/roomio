@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: roomio-postgres
+    environment:
+      POSTGRES_USER: roomio
+      POSTGRES_PASSWORD: roomio_dev_password
+      POSTGRES_DB: roomio
+    ports:
+      - "5440:5432"
+    volumes:
+      - roomio_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  roomio_postgres_data:
