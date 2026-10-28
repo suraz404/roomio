@@ -1,0 +1,2 @@
+CREATE TYPE "public"."space_role" AS ENUM('admin', 'member');--> statement-breakpoint
+ALTER TABLE "space_members" ALTER COLUMN "role" SET DATA TYPE "public"."space_role" USING "role"::"public"."space_role";

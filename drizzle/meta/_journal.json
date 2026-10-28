@@ -15,6 +15,20 @@
       "when": 1793124710410,
       "tag": "0001_brainy_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793146201232,
+      "tag": "0002_massive_thor_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793146249254,
+      "tag": "0003_gifted_jazinda",
+      "breakpoints": true
     }
   ]
 }
