@@ -23,17 +23,18 @@ Roomio is being built incrementally, with a focus on clean architecture, secure 
 
 ### Implemented
 
-- Initial PostgreSQL database setup using Docker Compose
+- PostgreSQL development database using Docker Compose
 - Drizzle ORM and Drizzle Kit configuration
 - Initial database schema for users, spaces, and space memberships
 - Database migrations
 - Foreign key, unique constraint, and enum validation
-- Database connection test from the application
+- Transactional space creation with automatic admin membership
 
 ### Planned Features
 
+- User registration, authentication, and session management
 - Shared spaces and roommate invitations
-- Automatic admin membership for the user who creates a space
+- Authorization and membership-based access control
 - Shared expense tracking and balance calculations
 - Chore management
 - Shared shopping lists
@@ -51,10 +52,14 @@ Make sure you have the following installed:
 
 ### 1. Clone the Repository
 
+Clone the repository using your GitHub repository URL:
+
 ```bash
 git clone <your-repository-url>
 cd roomio
 ```
+
+Replace `<your-repository-url>` with the actual repository URL.
 
 ### 2. Install Dependencies
 
@@ -64,17 +69,15 @@ npm install
 
 ### 3. Configure Environment Variables
 
-Create a `.env.local` file in the project root.
-
-Add your local PostgreSQL connection string:
+Create a `.env.local` file in the project root and add your PostgreSQL connection string:
 
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5440/DATABASE_NAME"
 ```
 
-Replace `USER`, `PASSWORD`, and `DATABASE_NAME` with the credentials configured in your local PostgreSQL Docker container.
+Replace `USER`, `PASSWORD`, and `DATABASE_NAME` with the credentials configured in your Docker Compose file.
 
-**Security:** Never commit `.env.local` or real production credentials to version control.
+**Security:** Never commit `.env.local` or production credentials to version control.
 
 ### 4. Start PostgreSQL
 
@@ -84,7 +87,7 @@ Make sure Docker Desktop is running, then execute:
 docker compose up -d
 ```
 
-Verify that the database container is running:
+Verify the database container:
 
 ```bash
 docker ps
@@ -112,11 +115,13 @@ The initial schema includes:
 
 - **Users:** Application user records
 - **Spaces:** Shared living spaces created by users
-- **Space Memberships:** Associates users with spaces and stores their membership roles
+- **Space Memberships:** Associates users with spaces and stores membership roles (`admin` or `member`)
 
-Database schema definitions are maintained in `src/db/schema.ts`, and database connection setup is maintained in `src/db/client.ts`.
+The schema is defined in `src/db/schema.ts`, and database connection setup is maintained in `src/db/client.ts`.
 
 Migration files are generated and managed using Drizzle Kit.
+
+Space creation and the creator's admin membership are performed in a database transaction so both operations succeed or fail together.
 
 ## Development Principles
 
