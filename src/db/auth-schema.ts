@@ -1,18 +1,6 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
-
-export const user = pgTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
+import { pgTable, text, timestamp, index, uuid } from "drizzle-orm/pg-core";
+import { users as user } from "./schema";
 
 export const session = pgTable(
   "session",
@@ -26,7 +14,7 @@ export const session = pgTable(
       .notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
   },
@@ -39,7 +27,7 @@ export const account = pgTable(
     id: text("id").primaryKey(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
-    userId: text("user_id")
+    userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     accessToken: text("access_token"),

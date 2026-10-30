@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: "pg",
+    provider: "pg", //for adapter to communicate to drizzle client instance
   }),
   emailAndPassword: {
     enabled: true,

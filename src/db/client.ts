@@ -1,6 +1,12 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import * as schema from "./schema";
+import * as roomioSchema from "./schema";
+import * as authSchema from "./auth-schema";
+
+const schema = {
+  ...roomioSchema,
+  ...authSchema,
+};
 
 const connectionString = process.env.DATABASE_URL;
 
