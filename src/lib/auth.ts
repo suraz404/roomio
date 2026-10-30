@@ -6,6 +6,17 @@ export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg", //for adapter to communicate to drizzle client instance
   }),
+  advanced: {
+    database: {
+      generateId: (options) => {
+        if (options.model === "user") {
+          return false;
+        }
+
+        return crypto.randomUUID();
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
   },
