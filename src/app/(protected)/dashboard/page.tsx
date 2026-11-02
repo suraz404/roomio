@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { LogoutButton } from "@/components/login-button";
 import { requireSession } from "@/lib/session";
 
@@ -16,5 +17,11 @@ async function DashboardContent() {
 }
 
 export default function DashboardPage() {
-  return <DashboardContent />;
+  return (
+    <Suspense
+      fallback={<p className="p-8 text-sm text-slate-600">Loading...</p>}
+    >
+      <DashboardContent />
+    </Suspense>
+  );
 }
