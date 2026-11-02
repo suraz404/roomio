@@ -1,12 +1,20 @@
+import { LogoutButton } from "@/components/login-button";
 import { requireSession } from "@/lib/session";
 
-export default async function DashboardPage() {
+async function DashboardContent() {
   const session = await requireSession();
+
   return (
-    <main>
+    <main className="p-8">
       <h1>Roomio Dashboard</h1>
       <p>Welcome, {session.user.name}</p>
       <p>{session.user.email}</p>
+
+      <LogoutButton />
     </main>
   );
+}
+
+export default function DashboardPage() {
+  return <DashboardContent />;
 }

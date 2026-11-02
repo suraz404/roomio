@@ -1,10 +1,11 @@
 //protected pages ko lagi yo session.ts
 
+import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 
-export async function requireSession() {
+export const requireSession = cache(async () => {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -14,4 +15,4 @@ export async function requireSession() {
   }
 
   return session;
-}
+});
