@@ -50,6 +50,13 @@
       "when": 1793372333537,
       "tag": "0006_cooing_barracuda",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794158348452,
+      "tag": "0007_add-expenses",
+      "breakpoints": true
     }
   ]
 }
