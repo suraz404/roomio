@@ -8,8 +8,17 @@ import {
   boolean,
   integer,
   check,
+  jsonb,
+  index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+export const expenseAuditActionEnum = pgEnum("expense_audit_action", [
+  "CREATE",
+  "UPDATE",
+  "DELETE",
+  "RESTORE",
+]);
 
 export const spaceRoleEnum = pgEnum("space_role", ["admin", "member"]);
 export const users = pgTable("users", {
@@ -113,5 +122,35 @@ export const expense_splits = pgTable(
   (table) => [
     unique().on(table.expenseId, table.userId),
     check("expense_splits_amount_positive", sql`${table.amount} > 0`),
+  ],
+);
+export const expenseAuditLogs = pgTable(
+  "expense_audit_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    expenseId: uuid("expense_id")
+      .notNull()
+      .references(() => expenses.id),
+
+    actorId: uuid("actor_id")
+      .notNull()
+      .references(() => users.id),
+
+    action: expenseAuditActionEnum("action").notNull(),
+
+    oldValues: jsonb("old_values").$type<Record<string, unknown>>(),
+
+    newValues: jsonb("new_values").$type<Record<string, unknown>>(),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("expense_audit_logs_expense_id_idx").on(table.expenseId),
+    index("expense_audit_logs_actor_id_idx").on(table.actorId),
   ],
 );
