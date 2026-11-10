@@ -32,11 +32,12 @@ Roomio is being built incrementally, with a focus on clean architecture, secure 
 - User registration, login, and logout (better-auth, email/password)
 - Cookie-based sessions, with an optimistic route guard in `src/proxy.ts` and real session checks in `requireSession()` / `getApiSession()`
 - Space membership check for API routes (`requireSpaceMembership()`)
+- Space creation (`POST /api/spaces`): space and creator's admin membership are created in one transaction
 - Database schema for expenses, expense splits (amounts stored in paisa), and expense audit logs (no expense API yet)
 
 ### Planned Features
 
-- Space creation and listing (the earlier test route was removed; creation is not implemented yet)
+- Space listing
 - Roommate invitations
 - Admin-only actions
 - Shared expense API and balance calculations
@@ -131,7 +132,21 @@ The schema is defined in `src/db/schema.ts`, and database connection setup is ma
 
 Migration files are generated and managed using Drizzle Kit.
 
-Planned: space creation and the creator's admin membership will run in a single database transaction so both succeed or fail together.
+Space creation and the creator's admin membership run in a single database transaction (`createSpace()` in `src/lib/spaces.ts`), so both succeed or fail together.
+
+## API
+
+### `POST /api/spaces`
+
+Creates a space; the logged-in user becomes its admin. Requires a session cookie.
+
+Request body: `{ "name": "Flat 4B" }` (trimmed, 1-60 characters). The creator always comes from the session; any `createdBy` in the body is ignored.
+
+| Status | Meaning |
+|---|---|
+| `201` | `{ "space": { id, name, createdBy, createdAt } }` |
+| `400` | Invalid JSON, or `name` missing / not a string / empty / over 60 characters |
+| `401` | Not logged in |
 
 ## Development Principles
 
