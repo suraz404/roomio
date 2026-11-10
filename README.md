@@ -13,6 +13,7 @@ Roomio is a full-stack web application currently under development. Its goal is 
 - **Styling:** Tailwind CSS
 - **Database:** PostgreSQL
 - **ORM:** Drizzle ORM
+- **Authentication:** better-auth (email/password, cookie sessions)
 - **Database Environment:** Docker
 
 ## Project Status
@@ -27,15 +28,18 @@ Roomio is being built incrementally, with a focus on clean architecture, secure 
 - Drizzle ORM and Drizzle Kit configuration
 - Initial database schema for users, spaces, and space memberships
 - Database migrations
-- Foreign key, unique constraint, and enum validation
-- Transactional space creation with automatic admin membership
+- Foreign key, unique constraint, check constraint, and enum validation
+- User registration, login, and logout (better-auth, email/password)
+- Cookie-based sessions, with an optimistic route guard in `src/proxy.ts` and real session checks in `requireSession()` / `getApiSession()`
+- Space membership check for API routes (`requireSpaceMembership()`)
+- Database schema for expenses, expense splits (amounts stored in paisa), and expense audit logs (no expense API yet)
 
 ### Planned Features
 
-- User registration, authentication, and session management
-- Shared spaces and roommate invitations
-- Authorization and membership-based access control
-- Shared expense tracking and balance calculations
+- Space creation and listing (the earlier test route was removed; creation is not implemented yet)
+- Roommate invitations
+- Admin-only actions
+- Shared expense API and balance calculations
 - Chore management
 - Shared shopping lists
 - A dashboard for household activities
@@ -69,13 +73,15 @@ npm install
 
 ### 3. Configure Environment Variables
 
-Create a `.env.local` file in the project root and add your PostgreSQL connection string:
+Create a `.env.local` file in the project root:
 
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5440/DATABASE_NAME"
+BETTER_AUTH_SECRET="a-long-random-string"
+BETTER_AUTH_URL="http://localhost:3000"
 ```
 
-Replace `USER`, `PASSWORD`, and `DATABASE_NAME` with the credentials configured in your Docker Compose file.
+Replace `USER`, `PASSWORD`, and `DATABASE_NAME` with the credentials configured in your Docker Compose file. Generate `BETTER_AUTH_SECRET` with `openssl rand -base64 32`.
 
 **Security:** Never commit `.env.local` or production credentials to version control.
 
@@ -111,17 +117,21 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 Roomio currently uses PostgreSQL with Drizzle ORM.
 
-The initial schema includes:
+The schema includes:
 
 - **Users:** Application user records
 - **Spaces:** Shared living spaces created by users
 - **Space Memberships:** Associates users with spaces and stores membership roles (`admin` or `member`)
+- **Auth tables:** `session`, `account`, `verification` (managed by better-auth, in `src/db/auth-schema.ts`)
+- **Expenses:** Shared expenses with amount in paisa, payer, and soft deletion
+- **Expense Splits:** Each user's share of an expense (unique per expense and user)
+- **Expense Audit Logs:** Records of create/update/delete/restore actions on expenses
 
 The schema is defined in `src/db/schema.ts`, and database connection setup is maintained in `src/db/client.ts`.
 
 Migration files are generated and managed using Drizzle Kit.
 
-Space creation and the creator's admin membership are performed in a database transaction so both operations succeed or fail together.
+Planned: space creation and the creator's admin membership will run in a single database transaction so both succeed or fail together.
 
 ## Development Principles
 
