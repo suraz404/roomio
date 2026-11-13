@@ -1,6 +1,5 @@
 // src/lib/auth-client.ts
 import { createAuthClient } from "better-auth/react";
 
-export const authClient = createAuthClient({
-  baseURL: "http://localhost:3000",
-});
+// No baseURL: the client resolves against the origin the page was served from.
+export const authClient = createAuthClient();
