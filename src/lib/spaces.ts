@@ -1,3 +1,4 @@
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { spaces, space_members } from "@/db/schema";
 
@@ -20,4 +21,18 @@ export async function createSpace(userId: string, name: string) {
 
     return space;
   });
+}
+// Lists every space the user belongs to, with their role, newest first.
+export async function listSpacesForUser(userId: string) {
+  return db
+    .select({
+      id: spaces.id,
+      name: spaces.name,
+      role: space_members.role,
+      createdAt: spaces.createdAt,
+    })
+    .from(space_members)
+    .innerJoin(spaces, eq(space_members.space_id, spaces.id))
+    .where(eq(space_members.user_id, userId))
+    .orderBy(desc(spaces.createdAt));
 }

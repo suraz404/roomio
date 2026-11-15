@@ -1,5 +1,21 @@
 import { getApiSession } from "@/lib/api-auth";
-import { createSpace, SPACE_NAME_MAX_LENGTH } from "@/lib/spaces";
+import {
+  createSpace,
+  listSpacesForUser,
+  SPACE_NAME_MAX_LENGTH,
+} from "@/lib/spaces";
+
+export async function GET(request: Request) {
+  const session = await getApiSession(request.headers);
+
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const spaces = await listSpacesForUser(session.user.id);
+
+  return Response.json({ spaces });
+}
 
 export async function POST(request: Request) {
   const session = await getApiSession(request.headers);

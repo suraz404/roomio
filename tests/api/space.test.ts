@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { space_members } from "@/db/schema";
-import { POST } from "@/app/api/spaces/route";
+import { GET, POST } from "@/app/api/spaces/route";
+import { createSpace } from "@/lib/spaces";
 import { signUpAndGetCookie } from "../helpers/auth";
 import { spaces } from "@/db/schema";
 
@@ -17,6 +18,90 @@ function makeRequest(body: unknown, cookie?: string) {
     body: JSON.stringify(body),
   });
 }
+//Get req
+function makeGetRequest(cookie?: string) {
+  return new Request("http://localhost:3000/api/spaces", {
+    method: "GET",
+    headers: cookie ? { cookie } : {},
+  });
+}
+
+describe("GET /api/spaces", () => {
+  it("returns 401 without a session", async () => {
+    const response = await GET(makeGetRequest());
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns an empty list for a user with no spaces", async () => {
+    const { cookie } = await signUpAndGetCookie();
+
+    const response = await GET(makeGetRequest(cookie));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ spaces: [] });
+  });
+
+  it("returns the user's space with their role", async () => {
+    const ram = await signUpAndGetCookie("Ram");
+    const space = await createSpace(ram.user.id, "Flat 4B");
+
+    const response = await GET(makeGetRequest(ram.cookie));
+    const json = await response.json();
+
+    expect(json.spaces).toEqual([
+      {
+        id: space.id,
+        name: "Flat 4B",
+        role: "admin",
+        createdAt: space.createdAt.toISOString(),
+      },
+    ]);
+  });
+
+  it("does not return spaces the user is not a member of", async () => {
+    const ram = await signUpAndGetCookie("Ram");
+    const sita = await signUpAndGetCookie("Sita");
+    await createSpace(ram.user.id, "Flat 4B");
+    await createSpace(sita.user.id, "Flat 7A");
+
+    const response = await GET(makeGetRequest(ram.cookie));
+    const json = await response.json();
+
+    const names = json.spaces.map((s: { name: string }) => s.name);
+    expect(names).toEqual(["Flat 4B"]);
+  });
+
+  it("includes spaces where the user is a plain member", async () => {
+    const ram = await signUpAndGetCookie("Ram");
+    const sita = await signUpAndGetCookie("Sita");
+    const space = await createSpace(ram.user.id, "Flat 4B");
+
+    await db.insert(space_members).values({
+      user_id: sita.user.id,
+      space_id: space.id,
+      role: "member",
+    });
+
+    const response = await GET(makeGetRequest(sita.cookie));
+    const json = await response.json();
+
+    expect(json.spaces).toHaveLength(1);
+    expect(json.spaces[0]).toMatchObject({ id: space.id, role: "member" });
+  });
+
+  it("lists the newest space first", async () => {
+    const ram = await signUpAndGetCookie("Ram");
+    await createSpace(ram.user.id, "Old Flat");
+    await createSpace(ram.user.id, "New Flat");
+
+    const response = await GET(makeGetRequest(ram.cookie));
+    const json = await response.json();
+
+    const names = json.spaces.map((s: { name: string }) => s.name);
+    expect(names).toEqual(["New Flat", "Old Flat"]);
+  });
+});
 
 describe("POST /api/spaces", () => {
   it("returns 401 without a session", async () => {
