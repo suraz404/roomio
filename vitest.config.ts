@@ -12,5 +12,6 @@ export default defineConfig({
     env: TEST_ENV,
     fileParallelism: false,
     globalSetup: ["./tests/global-setup.ts"],
+    setupFiles: ["./tests/setup.ts"],
   },
 });
