@@ -34,6 +34,7 @@ Roomio is being built incrementally, with a focus on clean architecture, secure 
 - Space membership check for API routes (`requireSpaceMembership()`)
 - Space creation (`POST /api/spaces`): space and creator's admin membership are created in one transaction
 - Database schema for expenses, expense splits (amounts stored in paisa), and expense audit logs (no expense API yet)
+- Automated tests (Vitest) against a separate `roomio_test` database: space creation, request validation, authentication, and space membership checks
 
 ### Planned Features
 
@@ -134,6 +135,45 @@ Migration files are generated and managed using Drizzle Kit.
 
 Space creation and the creator's admin membership run in a single database transaction (`createSpace()` in `src/lib/spaces.ts`), so both succeed or fail together.
 
+## Testing
+
+Tests use [Vitest](https://vitest.dev/) and run against a real PostgreSQL database, so constraints, transactions, and auth behave exactly as in development.
+
+### Run the tests
+
+Make sure the Docker database is running, then:
+
+```bash
+npm test            # run all tests once
+npm run test:watch  # re-run on every file save
+```
+
+No extra setup is needed. Before the tests start, `tests/global-setup.ts` creates the `roomio_test` database (if it does not exist) in the same Docker container and applies all migrations from `drizzle/`.
+
+### How it works
+
+- **Separate database:** tests use `roomio_test`, never the development `roomio` database. The URL is set in `tests/env.ts` and can be overridden with `TEST_DATABASE_URL`.
+- **Safety guard:** `assertTestDatabase()` refuses to run if the database name does not end with `_test`. It runs both before migrations and before every reset.
+- **Clean state:** every test starts with empty tables (`resetDb()` in `tests/setup.ts`, run by `beforeEach`).
+- **Real sessions:** API tests sign up a real user through better-auth (`signUpAndGetCookie()`) and send the session cookie with the request.
+- **Sequential files:** test files run one at a time because they share one database.
+
+### Layout
+
+```text
+tests/
+  env.ts               test database URL, test env vars, safety guard
+  global-setup.ts      creates and migrates roomio_test (runs once)
+  setup.ts             resets the database before each test
+  helpers/
+    db.ts              resetDb(), createTestUser()
+    auth.ts            signUpAndGetCookie()
+  api/                 route handler tests (e.g. POST /api/spaces)
+  lib/                 tests for src/lib functions
+```
+
+When you add a new table, also add it to the `TRUNCATE` list in `tests/helpers/db.ts`.
+
 ## API
 
 ### `POST /api/spaces`
@@ -142,11 +182,11 @@ Creates a space; the logged-in user becomes its admin. Requires a session cookie
 
 Request body: `{ "name": "Flat 4B" }` (trimmed, 1-60 characters). The creator always comes from the session; any `createdBy` in the body is ignored.
 
-| Status | Meaning |
-|---|---|
-| `201` | `{ "space": { id, name, createdBy, createdAt } }` |
-| `400` | Invalid JSON, or `name` missing / not a string / empty / over 60 characters |
-| `401` | Not logged in |
+| Status | Meaning                                                                     |
+| ------ | --------------------------------------------------------------------------- |
+| `201`  | `{ "space": { id, name, createdBy, createdAt } }`                           |
+| `400`  | Invalid JSON, or `name` missing / not a string / empty / over 60 characters |
+| `401`  | Not logged in                                                               |
 
 ## Development Principles
 
@@ -155,6 +195,7 @@ Request body: `{ "name": "Flat 4B" }` (trimmed, 1-60 characters). The creator al
 - Keep secrets and environment-specific configuration out of source control.
 - Use transactions when related database operations must succeed or fail together.
 - Keep documentation aligned with the implemented code.
+- Build incrementally; a feature is done when its success and failure cases have automated tests.
 
 ## License
 
