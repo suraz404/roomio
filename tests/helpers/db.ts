@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
+import { space_members, users } from "@/db/schema";
 
 export async function resetDb() {
   await db.execute(sql`
@@ -31,4 +31,16 @@ export async function createTestUser(
     .returning();
 
   return user;
+}
+// Adds a user to a space directly. Stand-in for the invite flow (M4).
+export async function addMember(
+  spaceId: string,
+  userId: string,
+  role: "admin" | "member" = "member",
+) {
+  await db.insert(space_members).values({
+    user_id: userId,
+    space_id: spaceId,
+    role,
+  });
 }

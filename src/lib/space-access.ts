@@ -11,8 +11,8 @@ export class UnauthorizedError extends Error {
 }
 
 export class ForbiddenError extends Error {
-  constructor() {
-    super("You are not a member of this space.");
+  constructor(message = "You are not a member of this space.") {
+    super(message);
     this.name = "ForbiddenError";
   }
 }
@@ -43,4 +43,28 @@ export async function requireSpaceMembership(
   }
 
   return membership;
+}
+
+// Like requireSpaceMembership, but the user must also be an admin.
+export async function requireSpaceAdmin(spaceId: string, headers: Headers) {
+  const membership = await requireSpaceMembership(spaceId, headers);
+
+  if (membership.role !== "admin") {
+    throw new ForbiddenError("Only space admins can do this.");
+  }
+
+  return membership;
+}
+// Turns an access error into an HTTP response. Returns null for any other
+// error, so the caller can rethrow it.
+export function accessErrorResponse(error: unknown) {
+  if (error instanceof UnauthorizedError) {
+    return Response.json({ error: error.message }, { status: 401 });
+  }
+
+  if (error instanceof ForbiddenError) {
+    return Response.json({ error: error.message }, { status: 403 });
+  }
+
+  return null;
 }

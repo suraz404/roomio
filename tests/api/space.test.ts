@@ -6,6 +6,7 @@ import { GET, POST } from "@/app/api/spaces/route";
 import { createSpace } from "@/lib/spaces";
 import { signUpAndGetCookie } from "../helpers/auth";
 import { spaces } from "@/db/schema";
+import { parseSpaceName } from "@/lib/spaces";
 
 // Builds a POST /api/spaces request. Pass a cookie to act as a logged-in user.
 function makeRequest(body: unknown, cookie?: string) {
@@ -200,5 +201,28 @@ describe("POST /api/spaces", () => {
 
     const rows = await db.select().from(spaces);
     expect(rows).toHaveLength(0);
+  });
+});
+describe("parseSpaceName", () => {
+  it.each([
+    [{ name: "Flat 4B" }, "Flat 4B"],
+    [{ name: "  Flat 4B  " }, "Flat 4B"],
+    [{ name: "a".repeat(60) }, "a".repeat(60)],
+    [{ name: "Flat 4B", extra: true }, "Flat 4B"],
+  ])("accepts %j", (body, expected) => {
+    expect(parseSpaceName(body)).toEqual({ ok: true, name: expected });
+  });
+
+  it.each([
+    [{}, "name is required"],
+    [{ name: 123 }, "name is required"],
+    [{ name: null }, "name is required"],
+    [null, "name is required"],
+    ["Flat 4B", "name is required"],
+    [{ name: "" }, "name must be 1-60 characters"],
+    [{ name: "   " }, "name must be 1-60 characters"],
+    [{ name: "a".repeat(61) }, "name must be 1-60 characters"],
+  ])("rejects %j", (body, error) => {
+    expect(parseSpaceName(body)).toEqual({ ok: false, error });
   });
 });
