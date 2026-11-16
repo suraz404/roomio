@@ -219,3 +219,20 @@ describe("PATCH /api/spaces/[spaceId]", () => {
     expect(await nameInDb(flat7A.id)).toBe("Flat 7A");
   });
 });
+describe("malformed spaceId", () => {
+  it("GET returns 403, not 500", async () => {
+    const ram = await signUpAndGetCookie("Ram");
+
+    const response = await getSpace("abc", ram.cookie);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("PATCH returns 403, not 500", async () => {
+    const ram = await signUpAndGetCookie("Ram");
+
+    const response = await patchSpace("abc", { name: "X" }, ram.cookie);
+
+    expect(response.status).toBe(403);
+  });
+});

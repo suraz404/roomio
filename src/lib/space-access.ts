@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { space_members } from "@/db/schema";
 import { getApiSession } from "./api-auth";
-
+import { isUuid } from "./ids";
 export class UnauthorizedError extends Error {
   constructor() {
     super("You must be logged in.");
@@ -22,6 +22,11 @@ export async function requireSpaceMembership(
   headers: Headers,
 ) {
   const session = await getApiSession(headers);
+  // A malformed id cannot belong to any space; reject it before Postgres
+  // does (which would be a 500). Same answer as a space that does not exist.
+  if (!isUuid(spaceId)) {
+    throw new ForbiddenError();
+  }
 
   if (!session) {
     throw new UnauthorizedError();

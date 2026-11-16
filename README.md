@@ -188,6 +188,43 @@ Request body: `{ "name": "Flat 4B" }` (trimmed, 1-60 characters). The creator al
 | `400`  | Invalid JSON, or `name` missing / not a string / empty / over 60 characters |
 | `401`  | Not logged in                                                               |
 
+All `/api/spaces` routes require a session cookie (`401` without one). For any
+route with `[spaceId]`, a user who is not a member gets `403`, and so does a
+space id that does not exist or is not a valid UUID, so the response never
+reveals whether a space exists.
+
+### `GET /api/spaces`
+
+Lists the spaces the logged-in user belongs to, newest first.
+
+`200`: `{ "spaces": [{ id, name, role, createdAt }] }` (empty array if none)
+
+### `GET /api/spaces/[spaceId]`
+
+Members only.
+
+`200`: `{ "space": { id, name, createdAt, myRole, members: [{ userId, name, role }] } }`. Members are sorted by name; emails are not included.
+
+### `PATCH /api/spaces/[spaceId]`
+
+Admins only. Renames the space. Body: `{ "name": "Sunshine Flat" }` (same rules as `POST`).
+Access is checked before the body, so a non-admin always gets `403`.
+
+| Status | Meaning                                                 |
+| ------ | ------------------------------------------------------- |
+| `200`  | `{ "space": { id, name, createdAt } }`                  |
+| `400`  | Invalid JSON or invalid `name`                          |
+| `403`  | Not a member, not an admin, or invalid/unknown space id |
+
+### Access rules
+
+| Route                         | Login | Member          | Admin |
+| ----------------------------- | ----- | --------------- | ----- |
+| `POST /api/spaces`            | ✅    |                 |       |
+| `GET /api/spaces`             | ✅    | own spaces only |       |
+| `GET /api/spaces/[spaceId]`   | ✅    | ✅              |       |
+| `PATCH /api/spaces/[spaceId]` | ✅    | ✅              | ✅    |
+
 ## Development Principles
 
 - Build incrementally and verify each feature with tests.
