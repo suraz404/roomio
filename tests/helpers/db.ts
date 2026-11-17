@@ -5,6 +5,7 @@ import { space_members, users } from "@/db/schema";
 export async function resetDb() {
   await db.execute(sql`
     TRUNCATE TABLE
+      invitations,
       expense_audit_logs,
       expense_splits,
       expenses,
