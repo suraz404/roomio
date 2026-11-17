@@ -10,6 +10,7 @@ import {
   check,
   jsonb,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -33,7 +34,12 @@ export const users = pgTable("users", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
-
+export const invitationStatusEnum = pgEnum("invitation_status", [
+  "pending",
+  "accepted",
+  "rejected",
+  "revoked",
+]);
 export const spaces = pgTable("spaces", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
@@ -152,5 +158,53 @@ export const expenseAuditLogs = pgTable(
   (table) => [
     index("expense_audit_logs_expense_id_idx").on(table.expenseId),
     index("expense_audit_logs_actor_id_idx").on(table.actorId),
+  ],
+);
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    spaceId: uuid("space_id")
+      .notNull()
+      .references(() => spaces.id),
+
+    // Stored lowercase, so "Sita@X.com" and "sita@x.com" are the same invite.
+    email: text("email").notNull(),
+
+    // SHA-256 of the token. The token itself is never stored.
+    tokenHash: text("token_hash").notNull().unique(),
+
+    invitedBy: uuid("invited_by")
+      .notNull()
+      .references(() => users.id),
+
+    status: invitationStatusEnum("status").notNull().default("pending"),
+
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+
+    acceptedBy: uuid("accepted_by").references(() => users.id),
+  },
+  (table) => [
+    // At most one pending invite per email per space.
+    uniqueIndex("invitations_one_pending_per_email")
+      .on(table.spaceId, table.email)
+      .where(sql`${table.status} = 'pending'`),
+
+    check(
+      "invitations_accepted_has_user",
+      sql`(${table.status} = 'accepted') = (${table.acceptedBy} IS NOT NULL)`,
+    ),
+
+    check(
+      "invitations_email_lowercase",
+      sql`${table.email} = lower(${table.email})`,
+    ),
   ],
 );
