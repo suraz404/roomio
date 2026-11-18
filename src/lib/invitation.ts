@@ -13,6 +13,12 @@ export class InvitationConflictError extends Error {
     this.name = "InvitationConflictError";
   }
 }
+export class InviteeNotFoundError extends Error {
+  constructor() {
+    super("No Roomio account uses this email.");
+    this.name = "InviteeNotFoundError";
+  }
+}
 
 type ParseResult = { ok: true; email: string } | { ok: false; error: string };
 
@@ -61,14 +67,25 @@ export async function createInvitation(input: {
   email: string;
   invitedBy: string;
 }) {
+  // 1. The invitee must already have a Roomio account.
+  const [invitee] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, input.email))
+    .limit(1);
+
+  if (!invitee) {
+    throw new InviteeNotFoundError();
+  }
+
+  // 2. And must not already be in the space.
   const [existingMember] = await db
-    .select({ userId: users.id })
+    .select({ userId: space_members.user_id })
     .from(space_members)
-    .innerJoin(users, eq(space_members.user_id, users.id))
     .where(
       and(
         eq(space_members.space_id, input.spaceId),
-        eq(users.email, input.email),
+        eq(space_members.user_id, invitee.id),
       ),
     )
     .limit(1);

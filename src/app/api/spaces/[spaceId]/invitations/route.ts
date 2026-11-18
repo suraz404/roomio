@@ -3,6 +3,7 @@ import {
   createInvitation,
   InvitationConflictError,
   parseInviteEmail,
+  InviteeNotFoundError,
 } from "@/lib/invitation";
 
 type RouteContext = { params: Promise<{ spaceId: string }> };
@@ -52,6 +53,9 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     return Response.json({ invitation, inviteUrl }, { status: 201 });
   } catch (error) {
+    if (error instanceof InviteeNotFoundError) {
+      return Response.json({ error: error.message }, { status: 404 });
+    }
     if (error instanceof InvitationConflictError) {
       return Response.json({ error: error.message }, { status: 409 });
     }
