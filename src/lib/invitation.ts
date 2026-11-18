@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { invitations, space_members, users } from "@/db/schema";
+import { invitations, space_members, users, spaces } from "@/db/schema";
 import { generateToken, hashToken } from "./token";
 
 export const INVITE_TTL_DAYS = 7;
@@ -128,4 +128,41 @@ export async function createInvitation(input: {
 
     throw error;
   }
+}
+type StoredStatus = (typeof invitations.$inferSelect)["status"];
+export type InvitationStatus = StoredStatus | "expired";
+
+// What the user should see. A pending invite past its expiry is "expired";
+// answered invites keep their status even after expiry.
+export function effectiveStatus(
+  invitation: { status: StoredStatus; expiresAt: Date },
+  now: Date = new Date(),
+): InvitationStatus {
+  if (invitation.status === "pending" && invitation.expiresAt <= now) {
+    return "expired";
+  }
+
+  return invitation.status;
+}
+
+// Looks up an invite by its plain token (from the link). Does not check who
+// is asking: the caller must compare the invite email with the session.
+export async function findInvitationByToken(token: string) {
+  const [row] = await db
+    .select({
+      id: invitations.id,
+      email: invitations.email,
+      status: invitations.status,
+      expiresAt: invitations.expiresAt,
+      spaceId: spaces.id,
+      spaceName: spaces.name,
+      inviterName: users.name,
+    })
+    .from(invitations)
+    .innerJoin(spaces, eq(invitations.spaceId, spaces.id))
+    .innerJoin(users, eq(invitations.invitedBy, users.id))
+    .where(eq(invitations.tokenHash, hashToken(token)))
+    .limit(1);
+
+  return row ?? null;
 }
