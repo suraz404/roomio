@@ -1,4 +1,4 @@
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { invitations, space_members, users, spaces } from "@/db/schema";
 import { generateToken, hashToken } from "./token";
@@ -7,6 +7,7 @@ export const INVITE_TTL_DAYS = 7;
 const EMAIL_MAX_LENGTH = 254;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export class InvitationConflictError extends Error {
   constructor(message: string) {
     super(message);
@@ -188,6 +189,35 @@ const NOT_PENDING_MESSAGES: Record<
   revoked: "This invitation was cancelled.",
 };
 
+// Accept ra reject dubai ko saajha bhag:
+// kaard lock gara, Sita kai ho jaach, pending ho jaach.
+async function lockMyPendingInvite(tx: Tx, token: string, email: string) {
+  const [invite] = await tx
+    .select({
+      id: invitations.id,
+      spaceId: invitations.spaceId,
+      email: invitations.email,
+      status: invitations.status,
+      expiresAt: invitations.expiresAt,
+    })
+    .from(invitations)
+    .where(eq(invitations.tokenHash, hashToken(token)))
+    .limit(1)
+    .for("update");
+
+  if (!invite || invite.email !== email.toLowerCase()) {
+    throw new InvitationNotFoundError();
+  }
+
+  const status = effectiveStatus(invite);
+
+  if (status !== "pending") {
+    throw new InvitationStateError(NOT_PENDING_MESSAGES[status]);
+  }
+
+  return invite;
+}
+
 // Accepts an invite in one transaction: lock the invite row, check it, add
 // the member, mark it accepted. Returns the space the user joined.
 export async function acceptInvitation(input: {
@@ -196,32 +226,9 @@ export async function acceptInvitation(input: {
   email: string;
 }) {
   return db.transaction(async (tx) => {
-    // FOR UPDATE: anyone else touching this invite (a second accept, a
-    // revoke) waits until this transaction ends, then sees the new status.
-    const [invite] = await tx
-      .select({
-        id: invitations.id,
-        spaceId: invitations.spaceId,
-        email: invitations.email,
-        status: invitations.status,
-        expiresAt: invitations.expiresAt,
-      })
-      .from(invitations)
-      .where(eq(invitations.tokenHash, hashToken(input.token)))
-      .limit(1)
-      .for("update");
+    const invite = await lockMyPendingInvite(tx, input.token, input.email);
 
-    if (!invite || invite.email !== input.email.toLowerCase()) {
-      throw new InvitationNotFoundError();
-    }
-
-    const status = effectiveStatus(invite);
-
-    if (status !== "pending") {
-      throw new InvitationStateError(NOT_PENDING_MESSAGES[status]);
-    }
-
-    // Already a member (joined some other way)? Still a successful accept.
+    //accepts
     await tx
       .insert(space_members)
       .values({
@@ -246,5 +253,53 @@ export async function acceptInvitation(input: {
       .where(eq(spaces.id, invite.spaceId));
 
     return space;
+  });
+}
+
+export async function rejectInvitation(input: {
+  token: string;
+  email: string;
+}) {
+  await db.transaction(async (tx) => {
+    const invite = await lockMyPendingInvite(tx, input.token, input.email);
+
+    await tx
+      .update(invitations)
+      .set({
+        status: "rejected",
+        respondedAt: new Date(),
+      })
+      .where(eq(invitations.id, invite.id));
+  });
+}
+export async function revokeInvitation(input: {
+  spaceId: string;
+  invitationId: string;
+}) {
+  await db.transaction(async (tx) => {
+    const [invite] = await tx
+      .select({ id: invitations.id, status: invitations.status })
+      .from(invitations)
+      .where(
+        and(
+          eq(invitations.id, input.invitationId),
+          eq(invitations.spaceId, input.spaceId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+
+    if (!invite) {
+      throw new InvitationNotFoundError();
+    }
+
+    if (invite.status !== "pending") {
+      throw new InvitationStateError(NOT_PENDING_MESSAGES[invite.status]);
+    }
+
+    await tx
+      .update(invitations)
+      .set({ status: "revoked", respondedAt: new Date() })
+      .where(eq(invitations.id, invite.id));
   });
 }
