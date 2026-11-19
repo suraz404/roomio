@@ -19,7 +19,19 @@ export class InviteeNotFoundError extends Error {
     this.name = "InviteeNotFoundError";
   }
 }
+export class InvitationNotFoundError extends Error {
+  constructor() {
+    super("Invitation not found");
+    this.name = "InvitationNotFoundError";
+  }
+}
 
+export class InvitationStateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvitationStateError";
+  }
+}
 type ParseResult = { ok: true; email: string } | { ok: false; error: string };
 
 export function parseInviteEmail(body: unknown): ParseResult {
@@ -165,4 +177,74 @@ export async function findInvitationByToken(token: string) {
     .limit(1);
 
   return row ?? null;
+}
+const NOT_PENDING_MESSAGES: Record<
+  Exclude<InvitationStatus, "pending">,
+  string
+> = {
+  expired: "This invitation has expired.",
+  accepted: "This invitation has already been accepted.",
+  rejected: "This invitation was declined.",
+  revoked: "This invitation was cancelled.",
+};
+
+// Accepts an invite in one transaction: lock the invite row, check it, add
+// the member, mark it accepted. Returns the space the user joined.
+export async function acceptInvitation(input: {
+  token: string;
+  userId: string;
+  email: string;
+}) {
+  return db.transaction(async (tx) => {
+    // FOR UPDATE: anyone else touching this invite (a second accept, a
+    // revoke) waits until this transaction ends, then sees the new status.
+    const [invite] = await tx
+      .select({
+        id: invitations.id,
+        spaceId: invitations.spaceId,
+        email: invitations.email,
+        status: invitations.status,
+        expiresAt: invitations.expiresAt,
+      })
+      .from(invitations)
+      .where(eq(invitations.tokenHash, hashToken(input.token)))
+      .limit(1)
+      .for("update");
+
+    if (!invite || invite.email !== input.email.toLowerCase()) {
+      throw new InvitationNotFoundError();
+    }
+
+    const status = effectiveStatus(invite);
+
+    if (status !== "pending") {
+      throw new InvitationStateError(NOT_PENDING_MESSAGES[status]);
+    }
+
+    // Already a member (joined some other way)? Still a successful accept.
+    await tx
+      .insert(space_members)
+      .values({
+        user_id: input.userId,
+        space_id: invite.spaceId,
+        role: "member",
+      })
+      .onConflictDoNothing();
+
+    await tx
+      .update(invitations)
+      .set({
+        status: "accepted",
+        acceptedBy: input.userId,
+        respondedAt: new Date(),
+      })
+      .where(eq(invitations.id, invite.id));
+
+    const [space] = await tx
+      .select({ id: spaces.id, name: spaces.name })
+      .from(spaces)
+      .where(eq(spaces.id, invite.spaceId));
+
+    return space;
+  });
 }
