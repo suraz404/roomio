@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseInviteEmail } from "@/lib/invitation";
+import { parseInviteEmail, effectiveStatus } from "@/lib/invitation";
 import { generateToken, hashToken } from "@/lib/token";
 
 describe("parseInviteEmail", () => {
@@ -51,5 +51,21 @@ describe("tokens", () => {
 
   it("hashes different tokens to different values", () => {
     expect(hashToken("a")).not.toBe(hashToken("b"));
+  });
+});
+describe("effectiveStatus", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+  const yesterday = new Date("2026-11-19T12:00:00Z");
+  const tomorrow = new Date("2026-11-21T12:00:00Z");
+
+  it.each([
+    ["pending", tomorrow, "pending"],
+    ["pending", yesterday, "expired"],
+    ["pending", now, "expired"],
+    ["accepted", yesterday, "accepted"],
+    ["rejected", yesterday, "rejected"],
+    ["revoked", yesterday, "revoked"],
+  ] as const)("%s expiring %s → %s", (status, expiresAt, expected) => {
+    expect(effectiveStatus({ status, expiresAt }, now)).toBe(expected);
   });
 });
