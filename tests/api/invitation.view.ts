@@ -3,23 +3,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { invitations } from "@/db/schema";
 import { GET } from "@/app/api/spaces/[spaceId]/invitations/[token]/route";
-import { createInvitation } from "@/lib/invitation";
-import { createSpace } from "@/lib/spaces";
+
 import { signUpAndGetCookie } from "../helpers/auth";
-
-async function inviteToSpace(
-  spaceId: string,
-  email: string,
-  invitedBy: string,
-) {
-  const { invitation, token } = await createInvitation({
-    spaceId,
-    email,
-    invitedBy,
-  });
-
-  return { invitationId: invitation.id, token };
-}
+import { setupInvite } from "../helpers/invitation";
 
 function getInvitation(token: string, cookie?: string) {
   const request = new Request(
@@ -32,23 +18,9 @@ function getInvitation(token: string, cookie?: string) {
   return GET(request, { params: Promise.resolve({ token }) });
 }
 
-// Ram creates "Flat 4B" and invites Sita. Used by most tests below.
-async function setup() {
-  const ram = await signUpAndGetCookie("Ram");
-  const sita = await signUpAndGetCookie("Sita");
-  const space = await createSpace(ram.user.id, "Flat 4B");
-  const { invitationId, token } = await inviteToSpace(
-    space.id,
-    sita.user.email,
-    ram.user.id,
-  );
-
-  return { ram, sita, space, invitationId, token };
-}
-
 describe("GET /api/invitations/[token]", () => {
   it("returns 401 without a session", async () => {
-    const { token } = await setup();
+    const { token } = await setupInvite();
 
     const response = await getInvitation(token);
 
@@ -56,7 +28,7 @@ describe("GET /api/invitations/[token]", () => {
   });
 
   it("shows the invite to the invited user", async () => {
-    const { sita, space, invitationId, token } = await setup();
+    const { sita, space, invitationId, token } = await setupInvite();
 
     const response = await getInvitation(token, sita.cookie);
     const json = await response.json();
@@ -74,7 +46,7 @@ describe("GET /api/invitations/[token]", () => {
   });
 
   it("returns 404 to the inviter", async () => {
-    const { ram, token } = await setup();
+    const { ram, token } = await setupInvite();
 
     const response = await getInvitation(token, ram.cookie);
 
@@ -82,7 +54,7 @@ describe("GET /api/invitations/[token]", () => {
   });
 
   it("returns 404 to an unrelated user", async () => {
-    const { token } = await setup();
+    const { token } = await setupInvite();
     const hari = await signUpAndGetCookie("Hari");
 
     const response = await getInvitation(token, hari.cookie);
@@ -91,7 +63,7 @@ describe("GET /api/invitations/[token]", () => {
   });
 
   it("returns 404 for an unknown token", async () => {
-    const { sita } = await setup();
+    const { sita } = await setupInvite();
 
     const response = await getInvitation("not-a-real-token", sita.cookie);
 
@@ -99,7 +71,7 @@ describe("GET /api/invitations/[token]", () => {
   });
 
   it("answers someone else's invite exactly like an unknown token", async () => {
-    const { token } = await setup();
+    const { token } = await setupInvite();
     const hari = await signUpAndGetCookie("Hari");
 
     const stolen = await getInvitation(token, hari.cookie);
@@ -110,7 +82,7 @@ describe("GET /api/invitations/[token]", () => {
   });
 
   it("shows expired for a pending invite past its expiry", async () => {
-    const { sita, invitationId, token } = await setup();
+    const { sita, invitationId, token } = await setupInvite();
     await db
       .update(invitations)
       .set({ expiresAt: new Date(Date.now() - 60_000) })
@@ -124,7 +96,7 @@ describe("GET /api/invitations/[token]", () => {
   });
 
   it("shows accepted for an answered invite", async () => {
-    const { sita, invitationId, token } = await setup();
+    const { sita, invitationId, token } = await setupInvite();
     await db
       .update(invitations)
       .set({
@@ -141,7 +113,7 @@ describe("GET /api/invitations/[token]", () => {
   });
 
   it("does not change anything in the database", async () => {
-    const { sita, token } = await setup();
+    const { sita, token } = await setupInvite();
     const before = await db.select().from(invitations);
 
     await getInvitation(token, sita.cookie);

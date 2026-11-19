@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import { invitations, space_members, users, spaces } from "@/db/schema";
 import { generateToken, hashToken } from "./token";
