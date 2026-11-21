@@ -1,6 +1,9 @@
 import { createInvitation } from "@/lib/invitation";
 import { createSpace } from "@/lib/spaces";
 import { signUpAndGetCookie } from "./auth";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { invitations, space_members } from "@/db/schema";
 
 export async function inviteToSpace(
   spaceId: string,
@@ -28,4 +31,25 @@ export async function setupInvite() {
   );
 
   return { ram, sita, space, invitationId, token };
+}
+
+export async function invitationRow(id: string) {
+  const [row] = await db
+    .select()
+    .from(invitations)
+    .where(eq(invitations.id, id));
+
+  return row;
+}
+
+export function membershipsOf(userId: string, spaceId: string) {
+  return db
+    .select()
+    .from(space_members)
+    .where(
+      and(
+        eq(space_members.user_id, userId),
+        eq(space_members.space_id, spaceId),
+      ),
+    );
 }

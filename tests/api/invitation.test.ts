@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { invitations } from "@/db/schema";
-import { POST } from "@/app/api/spaces/[spaceId]/invitations/route";
+import { GET, POST } from "@/app/api/spaces/[spaceId]/invitations/route";
 import { createSpace } from "@/lib/spaces";
 import { hashToken } from "@/lib/token";
 import { signUpAndGetCookie } from "../helpers/auth";
 import { addMember } from "../helpers/db";
+import { setupInvite, inviteToSpace } from "../helpers/invitation";
 
 function postInvite(spaceId: string, body: unknown, cookie?: string) {
   const request = new Request(
@@ -233,5 +234,83 @@ describe("POST /api/spaces/[spaceId]/invitations", () => {
 
     expect(a.status).toBe(201);
     expect(b.status).toBe(201);
+  });
+});
+function listInvites(spaceId: string, cookie?: string) {
+  const request = new Request(
+    `http://localhost:3000/api/spaces/${spaceId}/invitations`,
+    { headers: cookie ? { cookie } : {} },
+  );
+
+  return GET(request, { params: Promise.resolve({ spaceId }) });
+}
+
+describe("GET /api/spaces/[spaceId]/invitations", () => {
+  it("lists pending invites with no token hash", async () => {
+    const { ram, sita, space, invitationId } = await setupInvite();
+
+    const response = await listInvites(space.id, ram.cookie);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      invitations: [
+        {
+          id: invitationId,
+          email: sita.user.email,
+          status: "pending",
+          expiresAt: expect.any(String),
+          createdAt: expect.any(String),
+          invitedByName: "Ram",
+        },
+      ],
+    });
+  });
+
+  it("leaves out answered invites", async () => {
+    const { ram, space, invitationId } = await setupInvite();
+    await db
+      .update(invitations)
+      .set({ status: "rejected", respondedAt: new Date() })
+      .where(eq(invitations.id, invitationId));
+
+    const json = await (await listInvites(space.id, ram.cookie)).json();
+
+    expect(json.invitations).toEqual([]);
+  });
+
+  it("shows expired invites as expired", async () => {
+    const { ram, space, invitationId } = await setupInvite();
+    await db
+      .update(invitations)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(invitations.id, invitationId));
+
+    const json = await (await listInvites(space.id, ram.cookie)).json();
+
+    expect(json.invitations[0].status).toBe("expired");
+  });
+
+  it("returns 403 for a plain member", async () => {
+    const { space } = await setupInvite();
+    const anil = await signUpAndGetCookie("Anil");
+    await addMember(space.id, anil.user.id);
+
+    const response = await listInvites(space.id, anil.cookie);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("does not show another space's invites", async () => {
+    const { space: ramSpace } = await setupInvite();
+    const gita = await signUpAndGetCookie("Gita");
+    const hari = await signUpAndGetCookie("Hari");
+    const gitaSpace = await createSpace(gita.user.id, "Flat 9C");
+    await inviteToSpace(gitaSpace.id, hari.user.email, gita.user.id);
+
+    const json = await (await listInvites(gitaSpace.id, gita.cookie)).json();
+
+    expect(json.invitations).toHaveLength(1);
+    expect(json.invitations[0].email).toBe(hari.user.email);
+    expect(ramSpace.id).not.toBe(gitaSpace.id);
   });
 });

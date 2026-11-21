@@ -1,10 +1,12 @@
-import { accessErrorResponse, requireSpaceAdmin } from "@/lib/space-access";
 import {
   createInvitation,
   InvitationConflictError,
-  parseInviteEmail,
   InviteeNotFoundError,
+  listPendingInvitations,
+  parseInviteEmail,
 } from "@/lib/invitation";
+import { accessErrorResponse, requireSpaceAdmin } from "@/lib/space-access";
+import { param } from "drizzle-orm";
 
 type RouteContext = { params: Promise<{ spaceId: string }> };
 
@@ -62,4 +64,24 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     throw error;
   }
+}
+
+export async function GET(request: Request, { params }: RouteContext) {
+  const { spaceId } = await params;
+
+  try {
+    await requireSpaceAdmin(spaceId, request.headers);
+  } catch (error) {
+    const response = accessErrorResponse(error);
+
+    if (response) {
+      return response;
+    }
+
+    throw error;
+  }
+
+  const invitations = await listPendingInvitations(spaceId);
+
+  return Response.json({ invitations });
 }

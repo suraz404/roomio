@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { invitations, space_members, users, spaces } from "@/db/schema";
 import { generateToken, hashToken } from "./token";
@@ -302,4 +302,26 @@ export async function revokeInvitation(input: {
       .set({ status: "revoked", respondedAt: new Date() })
       .where(eq(invitations.id, invite.id));
   });
+}
+
+// Pending invites of a space (including expired ones), newest first.
+// Does not check access: call requireSpaceAdmin() first.
+export async function listPendingInvitations(spaceId: string) {
+  const rows = await db
+    .select({
+      id: invitations.id,
+      email: invitations.email,
+      status: invitations.status,
+      expiresAt: invitations.expiresAt,
+      createdAt: invitations.createdAt,
+      invitedByName: users.name,
+    })
+    .from(invitations)
+    .innerJoin(users, eq(invitations.invitedBy, users.id))
+    .where(
+      and(eq(invitations.spaceId, spaceId), eq(invitations.status, "pending")),
+    )
+    .orderBy(desc(invitations.createdAt));
+
+  return rows.map((row) => ({ ...row, status: effectiveStatus(row) }));
 }
