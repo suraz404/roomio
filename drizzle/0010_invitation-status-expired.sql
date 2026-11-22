@@ -1,0 +1,1 @@
+ALTER TYPE "public"."expense_audit_action" ADD VALUE 'EXPIRED';

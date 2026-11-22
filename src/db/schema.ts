@@ -39,6 +39,7 @@ export const invitationStatusEnum = pgEnum("invitation_status", [
   "accepted",
   "rejected",
   "revoked",
+  "expired",
 ]);
 export const spaces = pgTable("spaces", {
   id: uuid("id").defaultRandom().primaryKey(),

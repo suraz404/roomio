@@ -1,4 +1,4 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, desc, eq, lte, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import { invitations, space_members, users, spaces } from "@/db/schema";
 import { generateToken, hashToken } from "./token";
@@ -115,23 +115,39 @@ export async function createInvitation(input: {
   );
 
   try {
-    const [invitation] = await db
-      .insert(invitations)
-      .values({
-        spaceId: input.spaceId,
-        email: input.email,
-        invitedBy: input.invitedBy,
-        tokenHash: hashToken(token),
-        expiresAt,
-      })
-      .returning({
-        id: invitations.id,
-        email: invitations.email,
-        status: invitations.status,
-        expiresAt: invitations.expiresAt,
-      });
+    return await db.transaction(async (tx) => {
+      // 1. Purano myaad sakiyeko kaard ma "expired" lekha
+      await tx
+        .update(invitations)
+        .set({ status: "expired", respondedAt: new Date() })
+        .where(
+          and(
+            eq(invitations.spaceId, input.spaceId),
+            eq(invitations.email, input.email),
+            eq(invitations.status, "pending"),
+            lte(invitations.expiresAt, new Date()),
+          ),
+        );
 
-    return { invitation, token };
+      // 2. Naya kaard tasa
+      const [invitation] = await tx
+        .insert(invitations)
+        .values({
+          spaceId: input.spaceId,
+          email: input.email,
+          invitedBy: input.invitedBy,
+          tokenHash: hashToken(token),
+          expiresAt,
+        })
+        .returning({
+          id: invitations.id,
+          email: invitations.email,
+          status: invitations.status,
+          expiresAt: invitations.expiresAt,
+        });
+
+      return { invitation, token };
+    });
   } catch (error) {
     if (isUniqueViolation(error, "invitations_one_pending_per_email")) {
       throw new InvitationConflictError(
