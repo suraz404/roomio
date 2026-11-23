@@ -1,12 +1,10 @@
 import {
   createInvitation,
-  InvitationConflictError,
-  InviteeNotFoundError,
+  invitationErrorResponse,
   listPendingInvitations,
   parseInviteEmail,
 } from "@/lib/invitation";
 import { accessErrorResponse, requireSpaceAdmin } from "@/lib/space-access";
-import { param } from "drizzle-orm";
 
 type RouteContext = { params: Promise<{ spaceId: string }> };
 
@@ -55,13 +53,10 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     return Response.json({ invitation, inviteUrl }, { status: 201 });
   } catch (error) {
-    if (error instanceof InviteeNotFoundError) {
-      return Response.json({ error: error.message }, { status: 404 });
+    const response = invitationErrorResponse(error);
+    if (response) {
+      return response;
     }
-    if (error instanceof InvitationConflictError) {
-      return Response.json({ error: error.message }, { status: 409 });
-    }
-
     throw error;
   }
 }

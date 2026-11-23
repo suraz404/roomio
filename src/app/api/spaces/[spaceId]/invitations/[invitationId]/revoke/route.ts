@@ -1,9 +1,5 @@
 import { isUuid } from "@/lib/ids";
-import {
-  InvitationNotFoundError,
-  InvitationStateError,
-  revokeInvitation,
-} from "@/lib/invitation";
+import { invitationErrorResponse, revokeInvitation } from "@/lib/invitation";
 import { accessErrorResponse, requireSpaceAdmin } from "@/lib/space-access";
 
 type RouteContext = {
@@ -40,14 +36,10 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     return new Response(null, { status: 204 });
   } catch (error) {
-    if (error instanceof InvitationNotFoundError) {
-      return Response.json(NOT_FOUND, { status: 404 });
+    const response = invitationErrorResponse(error);
+    if (response) {
+      return response;
     }
-
-    if (error instanceof InvitationStateError) {
-      return Response.json({ error: error.message }, { status: 409 });
-    }
-
     throw error;
   }
 }

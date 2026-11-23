@@ -111,22 +111,28 @@ describe("POST /api/spaces/[spaceId]/invitations/[invitationId]/revoke", () => {
     expect(await membershipsOf(sita.user.id, space.id)).toHaveLength(1);
   });
 
-  it("can revoke an expired invite, which allows a fresh one", async () => {
-    const { ram, sita, space, invitationId } = await setupInvite();
+  it("closes an expired invite automatically when a new one is sent", async () => {
+    const { ram, sita, space, invitationId, token } = await setupInvite();
+
+    // Purano kaard ko myaad sakau
     await db
       .update(invitations)
       .set({ expiresAt: new Date(Date.now() - 60_000) })
       .where(eq(invitations.id, invitationId));
 
-    const blocked = await doInvite(space.id, sita.user.email, ram.cookie);
-    expect(blocked.status).toBe(409);
-
-    expect((await doRevoke(space.id, invitationId, ram.cookie)).status).toBe(
-      204,
-    );
-
+    // 1. Naya kaard jaanchha (pahila 409 thiyo, aba 201)
     const fresh = await doInvite(space.id, sita.user.email, ram.cookie);
     expect(fresh.status).toBe(201);
+
+    // 2. Purano kaard "expired" bhayo ("revoked" hoina)
+    expect((await invitationRow(invitationId)).status).toBe("expired");
+
+    // 3. Sita le purano link kholin bhane sachcha message
+    const oldLink = await doAccept(token, sita.cookie);
+    expect(oldLink.status).toBe(409);
+    expect(await oldLink.json()).toEqual({
+      error: "This invitation has expired.",
+    });
   });
 
   it("keeps data consistent when accept and revoke race", async () => {

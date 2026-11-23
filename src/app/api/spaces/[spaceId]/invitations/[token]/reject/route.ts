@@ -1,9 +1,5 @@
 import { getApiSession } from "@/lib/api-auth";
-import {
-  InvitationNotFoundError,
-  InvitationStateError,
-  rejectInvitation,
-} from "@/lib/invitation";
+import { invitationErrorResponse, rejectInvitation } from "@/lib/invitation";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -23,12 +19,9 @@ export async function POST(request: Request, { params }: RouteContext) {
 
     return new Response(null, { status: 204 });
   } catch (error) {
-    if (error instanceof InvitationNotFoundError) {
-      return Response.json({ error: error.message }, { status: 404 });
-    }
-
-    if (error instanceof InvitationStateError) {
-      return Response.json({ error: error.message }, { status: 409 });
+    const response = invitationErrorResponse(error);
+    if (response) {
+      return response;
     }
 
     throw error;

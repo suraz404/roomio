@@ -341,3 +341,23 @@ export async function listPendingInvitations(spaceId: string) {
 
   return rows.map((row) => ({ ...row, status: effectiveStatus(row) }));
 }
+// Turns an invitation error into an HTTP response. Returns null for any
+// other error, so the caller can rethrow it. Same idea as
+// accessErrorResponse() in space-access.ts.
+export function invitationErrorResponse(error: unknown) {
+  if (
+    error instanceof InvitationNotFoundError ||
+    error instanceof InviteeNotFoundError
+  ) {
+    return Response.json({ error: error.message }, { status: 404 });
+  }
+
+  if (
+    error instanceof InvitationStateError ||
+    error instanceof InvitationConflictError
+  ) {
+    return Response.json({ error: error.message }, { status: 409 });
+  }
+
+  return null;
+}
