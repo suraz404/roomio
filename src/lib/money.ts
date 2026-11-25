@@ -38,3 +38,51 @@ export function parseAmountToPaisa(input: unknown): ParseAmountResult {
 
   return { ok: true, paisa };
 }
+
+type SplitResult =
+  | { ok: true; shares: { userId: string; paisa: number }[] }
+  | { ok: false; error: string };
+
+export function splitEqually(
+  amountPaisa: number,
+  participantIds: string[],
+): SplitResult {
+  const count = participantIds.length;
+
+  // 1.
+  if (count === 0) {
+    return { ok: false, error: "at least one participant is required" };
+  }
+  if (!Number.isInteger(amountPaisa) || amountPaisa <= 0) {
+    return {
+      ok: false,
+      error: "amount must be a positive whole number of paisa",
+    };
+  }
+
+  // 2. Set le duplicate hatauchha. Size ghatyo bhane duplicate thiyo.
+  if (new Set(participantIds).size !== count) {
+    return { ok: false, error: "participants must not repeat" };
+  }
+
+  // 3.
+  if (amountPaisa < count) {
+    return { ok: false, error: "amount is too small to split" };
+  }
+
+  // 4. Copy garera sort (original array lai nachhune)
+  const line = [...participantIds].sort();
+
+  // 5.
+  const base = Math.floor(amountPaisa / count);
+  const remainder = amountPaisa % count;
+
+  // 6.
+  const shares = line.map((userId, i) => ({
+    userId,
+    paisa: i < remainder ? base + 1 : base,
+  }));
+
+  // 7.
+  return { ok: true, shares };
+}

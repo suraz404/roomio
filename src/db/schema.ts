@@ -11,6 +11,7 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  date,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -87,15 +88,20 @@ export const expenses = pgTable(
       .notNull()
       .references(() => users.id),
 
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    spentOn: date("spent_on").notNull().defaultNow(),
+    version: integer("version").notNull().default(1),
 
-    updatedAt: timestamp("updated_at")
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
 
     // Soft deletion
-    deletedAt: timestamp("deleted_at"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
 
     deletedBy: uuid("deleted_by").references(() => users.id),
   },
@@ -106,6 +112,7 @@ export const expenses = pgTable(
       sql`(${table.deletedAt} IS NULL AND ${table.deletedBy} IS NULL)
           OR (${table.deletedAt} IS NOT NULL AND ${table.deletedBy} IS NOT NULL)`,
     ),
+    index("expenses_space_spent_on_idx").on(table.spaceId, table.spentOn),
   ],
 );
 export const expense_splits = pgTable(
