@@ -1,8 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { space_members } from "@/db/schema";
 import { getApiSession } from "./api-auth";
 import { isUuid } from "./ids";
+import { input } from "better-auth";
 export class UnauthorizedError extends Error {
   constructor() {
     super("You must be logged in.");
@@ -72,4 +73,31 @@ export function accessErrorResponse(error: unknown) {
   }
 
   return null;
+}
+
+// True if every id belongs to a member of the space. Ids may repeat
+// (paidBy is usually also a participant).
+export async function areAllMembers(spaceId: string, userIds: string[]) {
+  // Prashna 1 ko fix //if duplicate value are there
+  const unique = [...new Set(userIds)];
+  if (unique.length === 0) {
+    return false;
+  }
+
+  // Prashna 2 ko fix
+  if (!unique.every(isUuid)) {
+    return false;
+  }
+
+  const rows = await db
+    .select({ userId: space_members.user_id })
+    .from(space_members)
+    .where(
+      and(
+        eq(space_members.space_id, spaceId),
+        inArray(space_members.user_id, unique),
+      ),
+    );
+
+  return rows.length === unique.length;
 }

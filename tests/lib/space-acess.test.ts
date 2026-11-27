@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSpace } from "@/lib/spaces";
+import { createTestUser } from "../helpers/db";
+import { areAllMembers } from "@/lib/space-access";
 import {
   ForbiddenError,
   requireSpaceAdmin,
@@ -128,5 +130,56 @@ describe("requireSpaceAdmin", () => {
     await expect(
       requireSpaceAdmin(ramSpace.id, headersWith(gita.cookie)),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+describe("areAllMembers", () => {
+  it("is true when the payer is also a participant (ids repeat)", async () => {
+    const ram = await createTestUser({ name: "Ram" });
+    const sita = await createTestUser({ name: "Sita" });
+    const space = await createSpace(ram.id, "Flat 4B");
+    await addMember(space.id, sita.id);
+
+    expect(await areAllMembers(space.id, [ram.id, ram.id, sita.id])).toBe(true);
+  });
+
+  it("is false when one id is not a member", async () => {
+    const ram = await createTestUser({ name: "Ram" });
+    const gita = await createTestUser({ name: "Gita" });
+    const space = await createSpace(ram.id, "Flat 4B");
+
+    expect(await areAllMembers(space.id, [ram.id, gita.id])).toBe(false);
+  });
+
+  it("is false for a member of another space", async () => {
+    const ram = await createTestUser({ name: "Ram" });
+    const gita = await createTestUser({ name: "Gita" });
+    const ramSpace = await createSpace(ram.id, "Flat 4B");
+    await createSpace(gita.id, "Flat 9C");
+
+    expect(await areAllMembers(ramSpace.id, [gita.id])).toBe(false);
+  });
+
+  it("is false for an empty list", async () => {
+    const ram = await createTestUser({ name: "Ram" });
+    const space = await createSpace(ram.id, "Flat 4B");
+
+    expect(await areAllMembers(space.id, [])).toBe(false);
+  });
+
+  it.each([["abc"], ["not-a-uuid"], [""]])(
+    "is false (not a crash) for a malformed id %j",
+    async (badId) => {
+      const ram = await createTestUser({ name: "Ram" });
+      const space = await createSpace(ram.id, "Flat 4B");
+
+      expect(await areAllMembers(space.id, [ram.id, badId])).toBe(false);
+    },
+  );
+
+  it("is false for an unknown uuid", async () => {
+    const ram = await createTestUser({ name: "Ram" });
+    const space = await createSpace(ram.id, "Flat 4B");
+
+    expect(await areAllMembers(space.id, [crypto.randomUUID()])).toBe(false);
   });
 });
