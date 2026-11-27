@@ -3,6 +3,8 @@ import { parseAmountToPaisa, splitEqually } from "./money";
 import { db } from "@/db/client";
 import { expenseAuditLogs, expense_splits, expenses } from "@/db/schema";
 
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+
 export const EXPENSE_TITLE_MAX = 100;
 
 type ParseTitleResult =
@@ -193,4 +195,65 @@ export async function createExpense(input: {
 
     return { ...row, splits };
   });
+}
+
+export const EXPENSE_LIST_LIMIT = 100;
+
+// Newest expenses of a space (not deleted), each with its splits.
+// Does not check access: call requireSpaceMembership() first.
+export async function listExpenses(spaceId: string) {
+  // Query 1: expenses
+  const rows = await db
+    .select({
+      id: expenses.id,
+      title: expenses.title,
+      amount: expenses.amount,
+      paidBy: expenses.paidBy,
+      createdBy: expenses.createdBy,
+      spentOn: expenses.spentOn,
+      version: expenses.version,
+      createdAt: expenses.createdAt,
+    })
+    .from(expenses)
+    .where(and(eq(expenses.spaceId, spaceId), isNull(expenses.deletedAt)))
+    .orderBy(
+      desc(expenses.spentOn),
+      desc(expenses.createdAt),
+      desc(expenses.id),
+    )
+    .limit(EXPENSE_LIST_LIMIT);
+
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const splitRows = await db
+    .select({
+      expenseId: expense_splits.expenseId,
+      userId: expense_splits.userId,
+      amount: expense_splits.amount,
+    })
+    .from(expense_splits)
+    .where(
+      inArray(
+        expense_splits.expenseId,
+        rows.map((row) => row.id), //column and value
+      ),
+    );
+
+  const splitsByExpense = new Map<
+    string,
+    { userId: string; amount: number }[]
+  >();
+
+  for (const s of splitRows) {
+    const list = splitsByExpense.get(s.expenseId) ?? [];
+    list.push({ userId: s.userId, amount: s.amount });
+    splitsByExpense.set(s.expenseId, list);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    splits: splitsByExpense.get(row.id) ?? [],
+  }));
 }

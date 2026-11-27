@@ -1,4 +1,4 @@
-import { createExpense, parseExpenseBody } from "@/lib/expense";
+import { createExpense, listExpenses, parseExpenseBody } from "@/lib/expense";
 import {
   accessErrorResponse,
   areAllMembers,
@@ -57,4 +57,20 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   // H.
   return Response.json({ expense }, { status: 201 });
+}
+
+export async function GET(request: Request, { params }: RouteContext) {
+  const { spaceId } = await params;
+
+  try {
+    await requireSpaceMembership(spaceId, request.headers);
+  } catch (error) {
+    const response = accessErrorResponse(error);
+    if (response) return response;
+    throw error;
+  }
+
+  const expenses = await listExpenses(spaceId);
+
+  return Response.json({ expenses });
 }
